@@ -193,6 +193,7 @@ class ThreeView {
             { id: 'tablar_300x1200', path: 'cad_files/3d/tablar_1200x300.glb' },
             { id: 'tablar_350x1200', path: 'cad_files/3d/tablar_1200x350.glb' },
             { id: 'tablar_300x1900', path: 'cad_files/3d/tablar_1900x300.glb' },
+            { id: 'tablar_300x1900_spezial', path: 'cad_files/3d/tablar_1900x300_spezial.glb' },
             { id: 'tablar_300x2600', path: 'cad_files/3d/tablar_2600x300.glb' }
         ];
 
@@ -299,48 +300,40 @@ class ThreeView {
             this.objectGroup.remove(obj);
         }
 
-        /* ---- Schreiner Wood Materials ---- */
+        /* ---- Schreiner Wood & Metal Materials ---- */
         // Pfosten: Nussbaum (Dark Walnut Wood)
         const matNussbaum = new THREE.MeshStandardMaterial({ 
-            color: 0x4a2e1b, 
-            roughness: 0.38, 
-            metalness: 0.05, 
-            side: THREE.DoubleSide 
+            color: 0x3b2314, 
+            roughness: 0.35, 
+            metalness: 0.05 
         });
 
         // Tablare: Eichenholz (Natural Golden Oak Wood)
         const matEiche = new THREE.MeshStandardMaterial({ 
             color: 0xd4a373, 
-            roughness: 0.45, 
-            metalness: 0.02, 
-            side: THREE.DoubleSide 
+            roughness: 0.42, 
+            metalness: 0.02 
         });
 
-        const matAlum  = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.15, metalness: 0.9 });
-        const matTV    = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2 });
-        const matWall  = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, side: THREE.FrontSide });
+        const matAlum = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.15, metalness: 0.9 });
+        const matTV   = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.18, metalness: 0.3 });
+        const matWall = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.95 });
 
-        /* Find back surface Z coordinate of regal.glb to place white wall & parquet floor start */
-        let backZ = 0;
-        if (this.glbCache['regal']) {
-            backZ = this.glbCache['regal'].box.min.z;
-        }
+        const matRedWarning = new THREE.MeshStandardMaterial({
+            color: 0xef4444,
+            roughness: 0.4,
+            transparent: true,
+            opacity: 0.82
+        });
 
-        /* Update Parquet Floor position so its back edge touches the wall EXACTLY at Z = backZ */
-        if (this.floorMesh) {
-            // Floor depth = 3000mm, back edge at backZ -> center Z = backZ + 1500mm
-            this.floorMesh.position.set(1767.5, -10, backZ + 1500);
-        }
-
-        /* ---- 1. Pure White Wall (Stands EXACTLY on the parquet floor at Y = 0; Y from 0 to 2800mm) ---- */
-        const wallGeo = new THREE.BoxGeometry(4000, 2800, 20);
+        /* ---- 1. Pure White Studio Wall (Stands on parquet floor at Y = 0; Z = 0) ---- */
+        const wallGeo = new THREE.BoxGeometry(4500, 2800, 20);
         const wallMesh = new THREE.Mesh(wallGeo, matWall);
-        // Wall bottom at Y = 0 (center Y = 1400), wall front at Z = backZ - 0.5mm (center Z = backZ - 10.5)
-        wallMesh.position.set(1767.5, 1400, backZ - 10.5);
+        wallMesh.position.set(1767.5, 1400, -10);
         wallMesh.receiveShadow = true;
         this.objectGroup.add(wallMesh);
 
-        /* ---- 2. Regal Gestell / Pfosten: NUSSBAUM (Walnut Wood) ---- */
+        /* ---- 2. Regal Gestell: 6 Wandpfosten mit Boden-Abfalzung (Sockelleisten-Ausklinkung) ---- */
         if (this.glbCache['regal']) {
             const regalData = this.glbCache['regal'];
             const regalModel = regalData.scene.clone(true);
@@ -349,29 +342,57 @@ class ThreeView {
             regalModel.traverse(node => {
                 if (node.isMesh) {
                     node.material = matNussbaum;
+                    node.castShadow = true;
+                    node.receiveShadow = true;
                 }
             });
 
-            regalModel.position.set(0, 0, 0);
+            // Align GLB box to Y=0 (floor) and Z=0 (wall)
+            const box = regalData.box;
+            const offsetY = -box.min.y;
+            const offsetZ = -box.min.z;
+            regalModel.position.set(0, offsetY, offsetZ);
             this.objectGroup.add(regalModel);
         } else {
-            // Fallback: 6 Posts in Nussbaum (Walnut)
             const postXCenters = [17.5, 717.5, 1417.5, 2117.5, 2817.5, 3517.5];
             const postW = 35, postH = 2300, postD = 40;
-            const postCenterY = 1150;
-            const postCenterZ = 20;
+            const notchH = 80; // 80mm Sockelleisten-Abfalzung unten
+            const notchD = 20; // 20mm Tiefe Ausklinkung hinten
 
             postXCenters.forEach(cx => {
-                const geo = new THREE.BoxGeometry(postW, postH, postD);
-                const mesh = new THREE.Mesh(geo, matNussbaum);
-                mesh.position.set(cx, postCenterY, postCenterZ);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                this.objectGroup.add(mesh);
+                const postGroup = new THREE.Group();
+
+                // Upper Post Body (Y = 80..2300mm, full depth 40mm)
+                const upperGeo = new THREE.BoxGeometry(postW, postH - notchH, postD);
+                const upperMesh = new THREE.Mesh(upperGeo, matNussbaum);
+                upperMesh.position.set(0, notchH + (postH - notchH) / 2, postD / 2);
+                upperMesh.castShadow = true;
+                upperMesh.receiveShadow = true;
+                postGroup.add(upperMesh);
+
+                // Lower Rebate Foot (Y = 0..80mm, reduced depth 20mm at front, creating 20mm rebate at back)
+                const footGeo = new THREE.BoxGeometry(postW, notchH, postD - notchD);
+                const footMesh = new THREE.Mesh(footGeo, matNussbaum);
+                footMesh.position.set(0, notchH / 2, notchD + (postD - notchD) / 2);
+                footMesh.castShadow = true;
+                footMesh.receiveShadow = true;
+                postGroup.add(footMesh);
+
+                postGroup.position.set(cx, 0, 0);
+                this.objectGroup.add(postGroup);
+
+                // Add Metallic Hole Pins along each post
+                for (let y = 120; y < 2280; y += 80) {
+                    const pinGeo = new THREE.CylinderGeometry(4, 4, postD + 4, 16);
+                    pinGeo.rotateX(Math.PI / 2);
+                    const pinMesh = new THREE.Mesh(pinGeo, matAlum);
+                    pinMesh.position.set(cx, y, postD / 2);
+                    this.objectGroup.add(pinMesh);
+                }
             });
         }
 
-        /* ---- 3. TV (Positioned with 2D Drag Offset & Z = 65mm) ---- */
+        /* ---- 3. TV (OLED 3D Screen with Position Offset) ---- */
         if (configurator.tvData && configurator.tvData.bounds) {
             const b = configurator.tvData.bounds;
             const tvX = configurator.tvData.x || 0;
@@ -380,74 +401,90 @@ class ThreeView {
             const cx = tvX + (b.minX + b.maxX) / 2;
             const cy = tvY + (b.minY + b.maxY) / 2;
 
-            const tvGeo = new THREE.BoxGeometry(b.width, b.height, 50);
+            const tvGeo = new THREE.BoxGeometry(b.width, b.height, 45);
             const tvMesh = new THREE.Mesh(tvGeo, matTV);
             tvMesh.position.set(cx, cy, 65);
             tvMesh.castShadow = true;
             this.objectGroup.add(tvMesh);
         }
 
-        /* ---- 4. Placed Shelves: EICHENHOLZ (Oak Wood) ---- */
+        /* ---- 4. Placed Shelves (Oak Wood / Red Warning) ---- */
         configurator.placedShelves.forEach(shelf => {
             const templateId = shelf.templateId;
-            const glbData = this.glbCache[templateId];
+            const isInvalid = shelf.isOffGrid || shelf.isOverlapping;
+            const activeMat = isInvalid ? matRedWarning : matEiche;
+            const flipX = !!shelf.flipX;
+            const flipY = !!shelf.flipY;
+            const depth = (templateId === 'tablar_350x1200' || templateId.includes('350x')) ? 350 : 300;
+            const centerZ = depth / 2 + 10;
 
-            if (glbData) {
-                /* Render actual loaded CAD GLB 3D Model with Eichenholz (Oak) material */
-                const shelfModel = glbData.scene.clone(true);
-                
-                shelfModel.traverse(node => {
-                    if (node.isMesh) {
-                        node.material = matEiche;
-                    }
-                });
+            if (templateId === 'tablar_300x1900_spezial') {
+                /* Render 3D 1-Step Z-Stufentablar (Lower left board, 90° Vertical Riser in Span 2, Upper right board) */
+                const STEP_H = 400;
+                const R_X = 1054.5;
+                const spezGroup = new THREE.Group();
 
-                // Target World Hole 1 position
-                const hole1 = (shelf.dxf && shelf.dxf.holes && shelf.dxf.holes[0]) ? shelf.dxf.holes[0] : { x: 17.5, y: 1100 };
-                const targetHoleX = shelf.x + hole1.x;
-                const targetHoleY = shelf.y + hole1.y;
+                // 1. Lower Left Board (X = -232.5..1067.5, Y = 0)
+                const lowerW = 1067.5 - (-232.5); // 1300
+                const lowerGeo = new THREE.BoxGeometry(lowerW, 26, depth);
+                const lowerMesh = new THREE.Mesh(lowerGeo, activeMat);
+                lowerMesh.position.set(-232.5 + lowerW / 2, 0, centerZ);
+                lowerMesh.castShadow = true;
+                lowerMesh.receiveShadow = true;
+                spezGroup.add(lowerMesh);
 
-                // Hole 1 in local GLB model space (located 250mm from glb min.x, and centered vertically in Y)
-                const glbHoleX = glbData.box.min.x + 250.0;
-                const glbHoleY = glbData.box.min.y + (glbData.box.max.y - glbData.box.min.y) / 2;
+                // 2. Vertical 90° Riser in middle of Span 2 (X = 1054.5, Y = 13..387)
+                const riserGeo = new THREE.BoxGeometry(26, STEP_H - 26, depth);
+                const riserMesh = new THREE.Mesh(riserGeo, activeMat);
+                riserMesh.position.set(R_X, STEP_H / 2, centerZ);
+                riserMesh.castShadow = true;
+                riserMesh.receiveShadow = true;
+                spezGroup.add(riserMesh);
 
-                const posX = targetHoleX - glbHoleX;
-                const posY = targetHoleY - glbHoleY;
+                // 3. Upper Right Board (X = 1041.5..1667.5, Y = 400)
+                const upperW = 1667.5 - 1041.5; // 626
+                const upperGeo = new THREE.BoxGeometry(upperW, 26, depth);
+                const upperMesh = new THREE.Mesh(upperGeo, activeMat);
+                upperMesh.position.set(1041.5 + upperW / 2, STEP_H, centerZ);
+                upperMesh.castShadow = true;
+                upperMesh.receiveShadow = true;
+                spezGroup.add(upperMesh);
 
-                shelfModel.position.set(posX, posY, 0);
-                this.objectGroup.add(shelfModel);
+                const spezCenterX = (shelf.bounds.minX + shelf.bounds.maxX) / 2;
+                const spezCenterY = (shelf.bounds.minY + shelf.bounds.maxY) / 2;
+
+                spezGroup.scale.x = flipX ? -1 : 1;
+                spezGroup.scale.y = flipY ? -1 : 1;
+
+                const posX = flipX ? (shelf.x + 2 * spezCenterX) : shelf.x;
+                const posY = flipY ? (shelf.y + 2 * spezCenterY) : shelf.y;
+
+                spezGroup.position.set(posX, posY, 0);
+                this.objectGroup.add(spezGroup);
             } else {
-                /* Fallback: Extruded solid board geometry in Eichenholz */
+                /* Render Extruded Oak Board Geometry for Standard Shelves */
                 const b = shelf.bounds;
-                const depth = (templateId === 'tablar_350x1200' || templateId.includes('350x')) ? 350 : 300;
-                const centerZ = depth / 2;
                 const boardW = b.maxX - b.minX;
-                const boardH = b.maxY - b.minY;
-                const boardCX = shelf.x + (b.minX + b.maxX) / 2;
-                const boardCY = shelf.y + (b.minY + b.maxY) / 2;
+                const boardH = Math.max(26, b.maxY - b.minY);
+                const centerX = (b.minX + b.maxX) / 2;
+                const centerY = (b.minY + b.maxY) / 2;
 
-                const shelfGeo = new THREE.BoxGeometry(boardW, boardH, depth);
-                const shelfMesh = new THREE.Mesh(shelfGeo, matEiche);
-                shelfMesh.position.set(boardCX, boardCY, centerZ);
+                const shelfGroup = new THREE.Group();
+                const shelfGeo = new THREE.BoxGeometry(boardW, 26, depth);
+                const shelfMesh = new THREE.Mesh(shelfGeo, activeMat);
+                shelfMesh.position.set(b.minX + boardW / 2, centerY, centerZ);
                 shelfMesh.castShadow = true;
                 shelfMesh.receiveShadow = true;
-                this.objectGroup.add(shelfMesh);
-            }
+                shelfGroup.add(shelfMesh);
 
-            /* Alu pins through post holes (Z = 20mm) */
-            if (shelf.dxf && shelf.dxf.holes) {
-                shelf.dxf.holes.forEach(hole => {
-                    const hx = shelf.x + hole.x;
-                    const hy = shelf.y + hole.y;
-                    const pinLen = 80;
+                shelfGroup.scale.x = flipX ? -1 : 1;
+                shelfGroup.scale.y = flipY ? -1 : 1;
 
-                    const pinGeo = new THREE.CylinderGeometry(5, 5, pinLen, 16);
-                    const pinMesh = new THREE.Mesh(pinGeo, matAlum);
-                    pinMesh.rotation.x = Math.PI / 2;
-                    pinMesh.position.set(hx, hy, 20);
-                    pinMesh.castShadow = true;
-                    this.objectGroup.add(pinMesh);
-                });
+                const posX = flipX ? (shelf.x + 2 * centerX) : shelf.x;
+                const posY = flipY ? (shelf.y + 2 * centerY) : shelf.y;
+
+                shelfGroup.position.set(posX, posY, 0);
+                this.objectGroup.add(shelfGroup);
             }
         });
 

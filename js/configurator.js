@@ -61,23 +61,30 @@ class Configurator2D {
     }
 
     _resizeCanvas() {
-        const rect = this.canvas.parentElement.getBoundingClientRect();
-        this.canvas.width = rect.width;
-        this.canvas.height = rect.height;
+        if (!this.canvas) return;
+        const parent = this.canvas.parentElement;
+        const rect = parent ? parent.getBoundingClientRect() : null;
+        const w = (rect && rect.width > 50) ? rect.width : (window.innerWidth ? window.innerWidth - 320 : 1200);
+        const h = (rect && rect.height > 50) ? rect.height : (window.innerHeight ? window.innerHeight - 100 : 800);
+
+        this.canvas.width = w;
+        this.canvas.height = h;
+
+        if (this.basisData && this.basisData.bounds) {
+            const b = this.basisData.bounds;
+            if (b.width > 0 && b.height > 0) {
+                const fitScale = Math.min((w - 140) / b.width, (h - 140) / b.height);
+                this.scale = Math.max(0.15, Math.min(0.65, fitScale));
+                this.offsetX = (w - b.width * this.scale) / 2 - b.minX * this.scale;
+                this.offsetY = (h + b.height * this.scale) / 2 + b.minY * this.scale;
+            }
+        }
         this.render();
     }
 
     setBasisData(parsedDxf) {
         this.basisData = parsedDxf;
-        if (parsedDxf && parsedDxf.bounds) {
-            const b = parsedDxf.bounds;
-            const viewWidth = this.canvas.width;
-            const viewHeight = this.canvas.height;
-            this.scale = Math.min((viewWidth - 100) / b.width, (viewHeight - 100) / b.height, 0.45);
-            this.offsetX = (viewWidth - b.width * this.scale) / 2 - b.minX * this.scale;
-            this.offsetY = (viewHeight + b.height * this.scale) / 2 + b.minY * this.scale;
-        }
-
+        this._resizeCanvas();
         this.placedShelves.forEach(s => this._applyHoleSnapping(s));
         this.render();
     }
@@ -125,6 +132,8 @@ class Configurator2D {
             y: defaultY,
             dxf: tpl.dxf,
             bounds: tpl.dxf.bounds,
+            flipX: false,
+            flipY: false,
             isSelected: true
         };
 
@@ -150,6 +159,8 @@ class Configurator2D {
             y: original.y + 80,
             dxf: original.dxf,
             bounds: original.bounds,
+            flipX: !!original.flipX,
+            flipY: !!original.flipY,
             isSelected: true
         };
 
@@ -159,6 +170,22 @@ class Configurator2D {
         this.placedShelves.push(clone);
         this.selectedShelf = clone;
 
+        this.onStateChanged();
+        this.render();
+    }
+
+    flipSelectedShelfH() {
+        if (!this.selectedShelf) return;
+        this.selectedShelf.flipX = !this.selectedShelf.flipX;
+        this._applyHoleSnapping(this.selectedShelf);
+        this.onStateChanged();
+        this.render();
+    }
+
+    flipSelectedShelfV() {
+        if (!this.selectedShelf) return;
+        this.selectedShelf.flipY = !this.selectedShelf.flipY;
+        this._applyHoleSnapping(this.selectedShelf);
         this.onStateChanged();
         this.render();
     }
@@ -215,17 +242,168 @@ class Configurator2D {
         };
     }
 
+    _getShelfHoles(shelf) {
+        if (!shelf || !shelf.dxf || !shelf.dxf.holes) return [];
+        const flipX = !!shelf.flipX;
+        const flipY = !!shelf.flipY;
+        const b = shelf.bounds;
+
+        return shelf.dxf.holes.map(sh => {
+            let relX = sh.x;
+            let relY = sh.y;
+            if (flipX && b) {
+                relX = b.minX + b.maxX - sh.x;
+            }
+            if (flipY && b) {
+                relY = b.minY + b.maxY - sh.y;
+            }
+            return {
+                x: shelf.x + relX,
+                y: shelf.y + relY,
+                relX,
+                relY,
+                radius: sh.radius
+            };
+        });
+    }
+
+    _getShelfComponentBoxes(shelf) {
+        if (shelf.templateId === 'tablar_300x1900_spezial') {
+            const flipX = !!shelf.flipX;
+            const flipY = !!shelf.flipY;
+
+            let rawBoxes = [
+                // 1. Lower left board
+                { minX: -232.5, maxX: 1067.5, minY: -13, maxY: 13 },
+                // 2. Vertical 90° riser in middle of Span 2
+                { minX: 1041.5, maxX: 1067.5, minY: 13, maxY: 387 },
+                // 3. Upper right board
+                { minX: 1041.5, maxX: 1667.5, minY: 387, maxY: 413 }
+            ];
+
+            return rawBoxes.map(b => {
+                let minX = b.minX, maxX = b.maxX;
+                let minY = b.minY, maxY = b.maxY;
+
+                if (flipX && shelf.bounds) {
+                    const newMinX = shelf.bounds.maxX + shelf.bounds.minX - maxX;
+                    const newMaxX = shelf.bounds.maxX + shelf.bounds.minX - minX;
+                    minX = newMinX;
+                    maxX = newMaxX;
+                }
+                if (flipY && shelf.bounds) {
+                    const newMinY = shelf.bounds.maxY + shelf.bounds.minY - maxY;
+                    const newMaxY = shelf.bounds.maxY + shelf.bounds.minY - minY;
+                    minY = newMinY;
+                    maxY = newMaxY;
+                }
+
+                return {
+                    minX: shelf.x + minX + 2,
+                    maxX: shelf.x + maxX - 2,
+                    minY: shelf.y + minY + 2,
+                    maxY: shelf.y + maxY - 2
+                };
+            });
+        }
+
+        return [{
+            minX: shelf.x + shelf.bounds.minX + 2,
+            maxX: shelf.x + shelf.bounds.maxX - 2,
+            minY: shelf.y + shelf.bounds.minY + 2,
+            maxY: shelf.y + shelf.bounds.maxY - 2
+        }];
+    }
+
+    _validateShelves() {
+        this.placedShelves.forEach(s => {
+            s.isOffGrid = false;
+            s.isOverlapping = false;
+            s.isTvCollision = false;
+        });
+
+        if (!this.basisData || !this.basisData.holes) return;
+
+        // 1. Grid alignment check (all holes of a shelf must lie on a valid wall hole)
+        this.placedShelves.forEach(shelf => {
+            const holes = this._getShelfHoles(shelf);
+            if (holes.length > 0) {
+                const allAligned = holes.every(h => {
+                    return this.basisData.holes.some(bh =>
+                        Math.abs(bh.x - h.x) < 1.5 && Math.abs(bh.y - h.y) < 1.5
+                    );
+                });
+                if (!allAligned) {
+                    shelf.isOffGrid = true;
+                }
+            }
+        });
+
+        // 2. Multi-box precise component collision check between shelves
+        for (let i = 0; i < this.placedShelves.length; i++) {
+            for (let j = i + 1; j < this.placedShelves.length; j++) {
+                const s1 = this.placedShelves[i];
+                const s2 = this.placedShelves[j];
+
+                const boxes1 = this._getShelfComponentBoxes(s1);
+                const boxes2 = this._getShelfComponentBoxes(s2);
+
+                let collides = false;
+                for (const b1 of boxes1) {
+                    for (const b2 of boxes2) {
+                        if (b1.minX < b2.maxX && b1.maxX > b2.minX && b1.minY < b2.maxY && b1.maxY > b2.minY) {
+                            collides = true;
+                            break;
+                        }
+                    }
+                    if (collides) break;
+                }
+
+                if (collides) {
+                    s1.isOverlapping = true;
+                    s2.isOverlapping = true;
+                }
+            }
+        }
+
+        // 3. TV Boundary collision check against all shelves
+        if (this.tvData && this.tvData.bounds) {
+            const tvX = this.tvData.x || 0;
+            const tvY = this.tvData.y || 0;
+            const tvBox = {
+                minX: tvX + this.tvData.bounds.minX + 2,
+                maxX: tvX + this.tvData.bounds.maxX - 2,
+                minY: tvY + this.tvData.bounds.minY + 2,
+                maxY: tvY + this.tvData.bounds.maxY - 2
+            };
+
+            this.placedShelves.forEach(shelf => {
+                const shelfBoxes = this._getShelfComponentBoxes(shelf);
+                const collidesWithTV = shelfBoxes.some(b =>
+                    b.minX < tvBox.maxX && b.maxX > tvBox.minX && b.minY < tvBox.maxY && b.maxY > tvBox.minY
+                );
+
+                if (collidesWithTV) {
+                    shelf.isOverlapping = true;
+                    shelf.isTvCollision = true;
+                }
+            });
+        }
+    }
+
     // Snapping Logic: Hole-to-Hole alignment
     _applyHoleSnapping(shelf) {
         if (!this.basisData || !this.basisData.holes || this.basisData.holes.length === 0) return;
-        if (!shelf.dxf || !shelf.dxf.holes || shelf.dxf.holes.length === 0) return;
+        
+        const shelfHoles = this._getShelfHoles(shelf);
+        if (shelfHoles.length === 0) return;
 
         let bestSnapDelta = null;
         let minDistanceSq = Infinity;
 
-        shelf.dxf.holes.forEach(sh => {
-            const worldShX = shelf.x + sh.x;
-            const worldShY = shelf.y + sh.y;
+        shelfHoles.forEach(sh => {
+            const worldShX = sh.x;
+            const worldShY = sh.y;
 
             this.basisData.holes.forEach(bh => {
                 const dx = bh.x - worldShX;
@@ -245,15 +423,14 @@ class Configurator2D {
 
             // Find all aligned hole pairs for green snap indicators
             const alignedHolePairs = [];
-            shelf.dxf.holes.forEach(sh => {
-                const wx = shelf.x + sh.x;
-                const wy = shelf.y + sh.y;
+            const updatedHoles = this._getShelfHoles(shelf);
+            updatedHoles.forEach(sh => {
                 const targetHole = this.basisData.holes.find(bh => 
-                    Math.abs(bh.x - wx) < 1.5 && Math.abs(bh.y - wy) < 1.5
+                    Math.abs(bh.x - sh.x) < 1.5 && Math.abs(bh.y - sh.y) < 1.5
                 );
                 if (targetHole) {
                     alignedHolePairs.push({
-                        shelfHole: { x: wx, y: wy },
+                        shelfHole: { x: sh.x, y: sh.y },
                         postHole: { x: targetHole.x, y: targetHole.y }
                     });
                 }
@@ -271,8 +448,6 @@ class Configurator2D {
 
     _findMeasurementSnapPoint(worldPos) {
         let bestSnap = { x: worldPos.x, y: worldPos.y, label: '', is90Deg: false };
-        let minDistSq = 40 * 40;
-
         this.placedShelves.forEach((shelf) => {
             const topY = shelf.y + shelf.bounds.maxY;
             const bottomY = shelf.y + shelf.bounds.minY;
@@ -540,6 +715,9 @@ class Configurator2D {
         const ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+        // 0. Perform validation (Grid hole alignment & overlap collision checks)
+        this._validateShelves();
+
         // 1. Draw Axis & Grid Guides
         this._drawGrid(ctx);
 
@@ -549,11 +727,11 @@ class Configurator2D {
             this._drawHoles(ctx, this.basisData.holes, 0, 0, '#718096');
         }
 
-        // 3. Draw TV (tv.dxf with dark OLED screen fill & position offset)
+        // 3. Draw TV (tv.dxf with sleek OLED screen fill & position offset)
         if (this.tvData) {
             const tvX = this.tvData.x || 0;
             const tvY = this.tvData.y || 0;
-            this._drawDXF(ctx, this.tvData, tvX, tvY, 'rgba(15, 23, 42, 0.92)', '#475569', 2);
+            this._drawDXF(ctx, this.tvData, tvX, tvY, 'rgba(15, 23, 42, 0.75)', '#475569', 2, false, false, this.tvData.bounds);
             if (this.tvData.bounds) {
                 const center = this.worldToCanvas(
                     tvX + (this.tvData.bounds.minX + this.tvData.bounds.maxX) / 2,
@@ -570,27 +748,27 @@ class Configurator2D {
         this.placedShelves.forEach(shelf => {
             const isSelected = shelf.isSelected;
             const isHovered = (this.hoveredShelf && this.hoveredShelf.id === shelf.id);
+            const isInvalid = shelf.isOffGrid || shelf.isOverlapping;
             
-            let strokeColor = isSelected ? '#3182ce' : (isHovered ? '#63b3ed' : '#8c5e34');
-            let fillColor = isSelected ? 'rgba(212, 163, 115, 0.4)' : 'rgba(212, 163, 115, 0.25)';
+            let strokeColor = isInvalid ? '#dc2626' : (isSelected ? '#2563eb' : (isHovered ? '#38bdf8' : '#78350f'));
+            let fillColor = isInvalid ? '#fca5a5' : (isSelected ? '#fde68a' : '#d4a373');
 
-            this._drawDXF(ctx, shelf.dxf, shelf.x, shelf.y, fillColor, strokeColor, isSelected ? 2.5 : 1.5);
+            this._drawDXF(ctx, shelf.dxf, shelf.x, shelf.y, fillColor, strokeColor, isInvalid ? 3.0 : (isSelected ? 2.5 : 1.5), shelf.flipX, shelf.flipY, shelf.bounds);
 
             if (shelf.dxf.holes) {
-                this._drawHoles(ctx, shelf.dxf.holes, shelf.x, shelf.y, '#e2e8f0');
+                this._drawHoles(ctx, shelf.dxf.holes, shelf.x, shelf.y, isInvalid ? '#fca5a5' : '#e2e8f0', shelf.flipX, shelf.flipY, shelf.bounds);
             }
 
             // Alustangen connection glow pins
-            if (this.basisData && this.basisData.holes && shelf.dxf.holes) {
-                shelf.dxf.holes.forEach(sh => {
-                    const wx = shelf.x + sh.x;
-                    const wy = shelf.y + sh.y;
+            if (this.basisData && this.basisData.holes) {
+                const shelfHoles = this._getShelfHoles(shelf);
+                shelfHoles.forEach(sh => {
                     const aligns = this.basisData.holes.some(bh => 
-                        Math.abs(bh.x - wx) < 1.0 && Math.abs(bh.y - wy) < 1.0
+                        Math.abs(bh.x - sh.x) < 1.0 && Math.abs(bh.y - sh.y) < 1.0
                     );
                     if (aligns) {
-                        const cp = this.worldToCanvas(wx, wy);
-                        ctx.fillStyle = '#00f2fe';
+                        const cp = this.worldToCanvas(sh.x, sh.y);
+                        ctx.fillStyle = isInvalid ? '#ef4444' : '#00f2fe';
                         ctx.beginPath();
                         ctx.arc(cp.x, cp.y, 5 * this.scale, 0, Math.PI * 2);
                         ctx.fill();
@@ -602,10 +780,21 @@ class Configurator2D {
             }
 
             const cp = this.worldToCanvas(shelf.x + shelf.bounds.minX, shelf.y + shelf.bounds.maxY + 15);
-            ctx.fillStyle = isSelected ? '#63b3ed' : '#cbd5e0';
-            ctx.font = '11px Inter, monospace';
+            ctx.fillStyle = isInvalid ? '#ef4444' : (isSelected ? '#63b3ed' : '#cbd5e0');
+            ctx.font = 'bold 11px Inter, monospace';
             ctx.textAlign = 'left';
-            ctx.fillText(`${shelf.name} (${Math.round(shelf.bounds.width)}mm)`, cp.x, cp.y);
+
+            let statusTag = '';
+            if (shelf.isTvCollision) statusTag += ' ⚠️ Überlappung mit TV!';
+            else if (shelf.isOverlapping) statusTag += ' ⚠️ Überlappung!';
+            else if (shelf.isOffGrid) statusTag += ' ⚠️ Ausserhalb Raster!';
+
+            let flipTag = '';
+            if (shelf.flipX && shelf.flipY) flipTag = ' [Spiegel H+V]';
+            else if (shelf.flipX) flipTag = ' [Spiegel H]';
+            else if (shelf.flipY) flipTag = ' [Spiegel V]';
+
+            ctx.fillText(`${shelf.name} (${Math.round(shelf.bounds.width)}mm)${flipTag}${statusTag}`, cp.x, cp.y);
         });
 
         // 5. Draw Active Snap Indicators ONLY when dragging AND snapped!
@@ -735,80 +924,126 @@ class Configurator2D {
     }
 
     _drawGrid(ctx) {
-        if (this.basisData && this.basisData.bounds) {
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([6, 6]);
+        // Always draw 6 Post Pillars (Pfosten 1 bis 6: Achsabstand 700mm)
+        const postXCenters = [17.5, 717.5, 1417.5, 2117.5, 2817.5, 3517.5];
+        const postW = 35;
 
-            const postCenters = [17.5, 717.5, 1417.5, 2117.5, 2817.5, 3517.5];
-            postCenters.forEach((x, idx) => {
-                const pStart = this.worldToCanvas(x, 0);
-                const pEnd = this.worldToCanvas(x, 2300);
-                ctx.beginPath();
-                ctx.moveTo(pStart.x, pStart.y);
-                ctx.lineTo(pEnd.x, pEnd.y);
-                ctx.stroke();
+        postXCenters.forEach((cx, idx) => {
+            const minX = cx - postW / 2;
+            const maxX = cx + postW / 2;
 
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
-                ctx.font = '10px Inter, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText(`Pfosten ${idx + 1}`, pStart.x, pStart.y + 15);
-            });
-            ctx.setLineDash([]);
-        }
+            const p1 = this.worldToCanvas(minX, 0);       // bottom Y=0
+            const p2 = this.worldToCanvas(maxX, 2300);    // top Y=2300
+
+            const rectX = Math.min(p1.x, p2.x);
+            const rectY = Math.min(p1.y, p2.y);
+            const rectW = Math.max(1, Math.abs(p2.x - p1.x));
+            const rectH = Math.max(1, Math.abs(p1.y - p2.y));
+
+            // 1. Draw solid post pillar background (high-contrast slate steel)
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(rectX, rectY, rectW, rectH);
+
+            // 2. Draw post pillar border (crisp silver border)
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 2.0;
+            ctx.strokeRect(rectX, rectY, rectW, rectH);
+
+            // 3. Draw Post Label at top (bright white text)
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = 'bold 12px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`Pfosten ${idx + 1}`, rectX + rectW / 2, rectY - 10);
+        });
     }
 
-    _drawDXF(ctx, parsedDxf, offsetX, offsetY, fillColor, strokeColor, lineWidth) {
+    _drawDXF(ctx, parsedDxf, offsetX, offsetY, fillColor, strokeColor, lineWidth, flipX = false, flipY = false, bounds = null) {
         if (!parsedDxf || !parsedDxf.entities) return;
 
-        // 1. Fill entire outer board geometry with ONE uniform color (prevents double-overlapping colors & transparent gaps)
-        if (fillColor && parsedDxf.bounds) {
-            const b = parsedDxf.bounds;
-            const p1 = this.worldToCanvas(b.minX + offsetX, b.minY + offsetY);
-            const p2 = this.worldToCanvas(b.maxX + offsetX, b.minY + offsetY);
-            const p3 = this.worldToCanvas(b.maxX + offsetX, b.maxY + offsetY);
-            const p4 = this.worldToCanvas(b.minX + offsetX, b.maxY + offsetY);
+        const b = bounds || parsedDxf.bounds;
 
+        const transformX = (x) => {
+            let rx = x;
+            if (flipX && b) rx = b.minX + b.maxX - x;
+            return rx + offsetX;
+        };
+
+        const transformY = (y) => {
+            let ry = y;
+            if (flipY && b) ry = b.minY + b.maxY - y;
+            return ry + offsetY;
+        };
+
+        // 1. Fill CAD polyline shapes cleanly with fillColor (fills whole board including overhangs)
+        if (fillColor) {
             ctx.fillStyle = fillColor;
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.lineTo(p3.x, p3.y);
-            ctx.lineTo(p4.x, p4.y);
-            ctx.closePath();
-            ctx.fill();
+            const polylines = parsedDxf.entities.filter(e => e.type === 'LWPOLYLINE' && e.points && e.points.length >= 3 && e.isClosed);
+
+            if (polylines.length > 0) {
+                polylines.forEach(e => {
+                    ctx.beginPath();
+                    e.points.forEach((p, idx) => {
+                        const cp = this.worldToCanvas(transformX(p.x), transformY(p.y));
+                        if (idx === 0) ctx.moveTo(cp.x, cp.y);
+                        else ctx.lineTo(cp.x, cp.y);
+                    });
+                    ctx.closePath();
+                    ctx.fill();
+                });
+            } else if (b) {
+                const p1 = this.worldToCanvas(transformX(b.minX), transformY(b.minY));
+                const p2 = this.worldToCanvas(transformX(b.maxX), transformY(b.minY));
+                const p3 = this.worldToCanvas(transformX(b.maxX), transformY(b.maxY));
+                const p4 = this.worldToCanvas(transformX(b.minX), transformY(b.maxY));
+
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.lineTo(p3.x, p3.y);
+                ctx.lineTo(p4.x, p4.y);
+                ctx.closePath();
+                ctx.fill();
+            }
         }
 
-        // 2. Stroke all CAD lines, polylines, and notch outlines cleanly
+        // 2. Stroke all CAD lines, polylines, circles, and arcs
         ctx.strokeStyle = strokeColor;
         ctx.lineWidth = lineWidth;
 
         parsedDxf.entities.forEach(e => {
             if (e.type === 'LINE') {
-                const p1 = this.worldToCanvas(e.x1 + offsetX, e.y1 + offsetY);
-                const p2 = this.worldToCanvas(e.x2 + offsetX, e.y2 + offsetY);
+                const p1 = this.worldToCanvas(transformX(e.x1), transformY(e.y1));
+                const p2 = this.worldToCanvas(transformX(e.x2), transformY(e.y2));
                 ctx.beginPath();
                 ctx.moveTo(p1.x, p1.y);
                 ctx.lineTo(p2.x, p2.y);
                 ctx.stroke();
-            } else if (e.type === 'LWPOLYLINE' && e.points.length > 0) {
+            } else if (e.type === 'LWPOLYLINE' && e.points && e.points.length > 0) {
                 ctx.beginPath();
                 e.points.forEach((p, idx) => {
-                    const cp = this.worldToCanvas(p.x + offsetX, p.y + offsetY);
+                    const cp = this.worldToCanvas(transformX(p.x), transformY(p.y));
                     if (idx === 0) ctx.moveTo(cp.x, cp.y);
                     else ctx.lineTo(cp.x, cp.y);
                 });
                 if (e.isClosed) ctx.closePath();
                 ctx.stroke();
             } else if (e.type === 'CIRCLE' && e.radius > 6) {
-                const cp = this.worldToCanvas(e.x + offsetX, e.y + offsetY);
+                const cp = this.worldToCanvas(transformX(e.x), transformY(e.y));
                 ctx.beginPath();
                 ctx.arc(cp.x, cp.y, e.radius * this.scale, 0, Math.PI * 2);
                 ctx.stroke();
             } else if (e.type === 'ARC') {
-                const cp = this.worldToCanvas(e.x + offsetX, e.y + offsetY);
-                const startRad = -e.startAngle * Math.PI / 180;
-                const endRad = -e.endAngle * Math.PI / 180;
+                const cp = this.worldToCanvas(transformX(e.x), transformY(e.y));
+                let startRad = -e.startAngle * Math.PI / 180;
+                let endRad = -e.endAngle * Math.PI / 180;
+                if (flipX) {
+                    startRad = Math.PI - startRad;
+                    endRad = Math.PI - endRad;
+                }
+                if (flipY) {
+                    startRad = -startRad;
+                    endRad = -endRad;
+                }
                 ctx.beginPath();
                 ctx.arc(cp.x, cp.y, e.radius * this.scale, startRad, endRad, true);
                 ctx.stroke();
@@ -816,14 +1051,25 @@ class Configurator2D {
         });
     }
 
-    _drawHoles(ctx, holes, offsetX, offsetY, color) {
+    _drawHoles(ctx, holes, offsetX, offsetY, color, flipX = false, flipY = false, bounds = null) {
         if (!holes) return;
-        ctx.fillStyle = color;
         holes.forEach(h => {
-            const cp = this.worldToCanvas(h.x + offsetX, h.y + offsetY);
+            let rx = h.x;
+            let ry = h.y;
+            if (flipX && bounds) rx = bounds.minX + bounds.maxX - h.x;
+            if (flipY && bounds) ry = bounds.minY + bounds.maxY - h.y;
+
+            const cp = this.worldToCanvas(rx + offsetX, ry + offsetY);
+            const radius = Math.max(3.5, (h.radius || 5) * this.scale);
+
+            ctx.fillStyle = color || '#f8fafc';
             ctx.beginPath();
-            ctx.arc(cp.x, cp.y, Math.max(2, h.radius * this.scale), 0, Math.PI * 2);
+            ctx.arc(cp.x, cp.y, radius, 0, Math.PI * 2);
             ctx.fill();
+
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
         });
     }
 }

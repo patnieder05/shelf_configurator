@@ -55,6 +55,13 @@
                         </div>
                         <div class="preset-card">
                             <div class="preset-info">
+                                <div class="preset-name">Tablar 300 x 1900 mm Spezial</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell (90° Stufe)</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-1900-spezial">+ Einfügen</button>
+                        </div>
+                        <div class="preset-card">
+                            <div class="preset-info">
                                 <div class="preset-name">Tablar 300 x 2600 mm</div>
                                 <div class="preset-desc">DXF / 3D GLTF Modell</div>
                             </div>
@@ -84,7 +91,7 @@
 
                 <!-- Panel 3: Speichern & Export -->
                 <div class="panel-section">
-                    <div class="panel-title">Export & Daten</div>
+                    <div class="panel-title">Export &amp; Daten</div>
                     <div style="display: flex; flex-direction: column; gap: 8px;">
                         <button class="btn-tool" id="btn-export-json" style="justify-content: center;">
                             💾 Konfiguration Speichern (JSON)
@@ -133,6 +140,9 @@
                 <div id="shelf-action-bar" class="shelf-action-bar">
                     <span id="action-bar-title" class="action-bar-title">Tablar</span>
                     <div class="action-bar-divider"></div>
+                    <button id="btn-action-flip-h" class="btn-action" title="Horizontale Spiegeln (Flip H)">↔️ Spiegeln H</button>
+                    <button id="btn-action-flip-v" class="btn-action" title="Vertikale Spiegeln (Flip V)">↕️ Spiegeln V</button>
+                    <div class="action-bar-divider"></div>
                     <button id="btn-action-duplicate" class="btn-action" title="Tablar duplizieren">📋 Duplizieren</button>
                     <button id="btn-action-up" class="btn-action" title="1 Rasterstufe höher (80mm)">⬆️ Höher</button>
                     <button id="btn-action-down" class="btn-action" title="1 Rasterstufe tiefer (80mm)">⬇️ Tiefer</button>
@@ -174,12 +184,13 @@
         </main>
     </div>
 
-    <!-- Scripts -->
-    <script src="js/dxf-defaults.js"></script>
-    <script src="js/dxf-parser.js"></script>
-    <script src="js/step-parser.js"></script>
-    <script src="js/configurator.js"></script>
-    <script src="js/three-view.js"></script>
-    <script src="js/app.js"></script>
+    <!-- Scripts (Cache-Busting for Live Server) -->
+    <script src="js/dxf-defaults.js?v=1.2.0"></script>
+    <script src="js/dxf-parser.js?v=1.2.0"></script>
+    <script src="js/svg-parser.js?v=1.2.0"></script>
+    <script src="js/step-parser.js?v=1.2.0"></script>
+    <script src="js/configurator.js?v=1.2.0"></script>
+    <script src="js/three-view.js?v=1.2.0"></script>
+    <script src="js/app.js?v=1.2.0"></script>
 </body>
 </html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="de"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wandregal Konfigurator</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com/">
+    <link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+    <link href="snapshot_files/css2_KYnH.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="snapshot_files/style_KYnH.css">
+    
+    <!-- Three.js & GLTFLoader for 3D Visualisation (loaded via CDN) -->
+    <script src="snapshot_files/three.min_KYnH.js"></script>
+    <script src="snapshot_files/OrbitControls_KYnH.js"></script>
+    <script src="snapshot_files/GLTFLoader_KYnH.js"></script>
+<!-- Code injected by Five-server -->
+  <script async="" data-id="five-server" data-file="c:\Users\Patrick\Documents\repos\software\shelf_configurator\index.html" type="application/javascript" src="snapshot_files/fiveserver_KYnH.js"></script>
+  <style>      
+      /* Injected by five-server */
+      /*[data-highlight="true"] {
+        border: 1px rgb(90,170,255) solid !important;
+        background-color: rgba(155,215,255,0.5);
+        animation: fadeOutHighlight 1s forwards 0.5s;
+      }
+      img[data-highlight="true"] {
+        filter: sepia(100%) hue-rotate(180deg) saturate(200%);
+        animation: fadeOutHighlightIMG 0.5s forwards 0.5s;
+      }*/
+      @keyframes fadeOutHighlight {
+        from {background-color: rgba(155,215,255,0.5);}
+        to {background-color: rgba(155,215,255,0);}
+      }      
+      @keyframes fadeOutHighlightIMG {
+        0% {filter: sepia(100%) hue-rotate(180deg) saturate(200%);}
+        33% {filter: sepia(66%) hue-rotate(180deg) saturate(100%);}
+        50% {filter: sepia(50%) hue-rotate(90deg) saturate(50%);}
+        66% {filter: sepia(33%) hue-rotate(0deg) saturate(100%);}
+        100% {filter: sepia(0%) hue-rotate(0deg) saturate(100%);}
+      }
+      @keyframes fiveserverInfoPopup {
+        0%   {top:-40px;}
+        15%  {top:4px;}
+        85%  {top:4px;}
+        100% {top:-40px;}
+      }
+      /*smaller*/
+      @media (max-width: 640px) {
+        #fiveserver-info-wrapper {
+          max-width: 98%;
+        }
+        #fiveserver-info {
+          border-radius: 0px;
+        }      
+      }
+
+      </style></head>
+<body>
+
+    <div id="app-container">
+        <!-- Sidebar Left: Control Panel & Library -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Wandregal Konfigurator</h1>
+            </div>
+
+            <div class="sidebar-content">
+                <!-- Panel 1: Tablar Bibliothek -->
+                <div class="panel-section">
+                    <div class="panel-title">Tablar-Bibliothek</div>
+                    <div class="preset-list" id="preset-list">
+                        <div class="preset-card">
+                            <div class="preset-info">
+                                <div class="preset-name">Tablar 300 x 1200 mm</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-1200">+ Einfügen</button>
+                        </div>
+                        <div class="preset-card">
+                            <div class="preset-info">
+                                <div class="preset-name">Tablar 350 x 1200 mm</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-350x1200">+ Einfügen</button>
+                        </div>
+                        <div class="preset-card">
+                            <div class="preset-info">
+                                <div class="preset-name">Tablar 300 x 1900 mm</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-1900">+ Einfügen</button>
+                        </div>
+                        <div class="preset-card" style="border-left: 3px solid var(--accent-wood);">
+                            <div class="preset-info">
+                                <div class="preset-name">Tablar 300 x 1900 mm Spezial</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell (Asymmetrisch)</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-1900-spezial">+ Einfügen</button>
+                        </div>
+                        <div class="preset-card">
+                            <div class="preset-info">
+                                <div class="preset-name">Tablar 300 x 2600 mm</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-2600">+ Einfügen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel 2: Live Stückliste (Tablare) -->
+                <div class="panel-section">
+                    <div class="panel-title">Stückliste (Tablare)</div>
+                    <table class="bom-table">
+                        <thead>
+                            <tr>
+                                <th>Tablar-Typ</th>
+                                <th>Anzahl</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bom-table-body">
+            <tr>
+                <td><strong>Gesamt Tablare</strong></td>
+                <td class="bom-highlight">2 Stk.</td>
+            </tr>
+        
+                <tr>
+                    <td>Tablar 300x1200 mm</td>
+                    <td>1 Stk.</td>
+                </tr>
+            
+                <tr>
+                    <td>Tablar 300x1900 mm Spezial</td>
+                    <td>1 Stk.</td>
+                </tr>
+            </tbody>
+                    </table>
+                </div>
+
+                <!-- Panel 3: Speichern & Export -->
+                <div class="panel-section">
+                    <div class="panel-title">Export &amp; Daten</div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button class="btn-tool" id="btn-export-json" style="justify-content: center;">
+                            💾 Konfiguration Speichern (JSON)
+                        </button>
+                        <button class="btn-tool danger" id="btn-clear-all" style="justify-content: center;">
+                            🗑️ Alle Tablare Löschen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Stage -->
+        <main class="main-stage">
+            <!-- Top Toolbar -->
+            <header class="top-toolbar">
+                <div class="toolbar-group">
+                    <button class="btn-tool danger" id="btn-delete-selected">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                        </svg>
+                        Löschen (Entf)
+                    </button>
+                    <button class="btn-tool" id="btn-measure">
+                        📏 Abstände Messen
+                    </button>
+                    <button class="btn-tool" id="btn-clear-measurements" title="Messlinien löschen">
+                        🧹 Messung löschen
+                    </button>
+                </div>
+
+                <div class="toolbar-group">
+                    <span style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                        <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green);"></span>
+                        10mm Lochraster Snap aktiv
+                    </span>
+                    <button class="btn-tool" id="btn-toggle-3d">
+                        3D Visualisierung
+                    </button>
+                </div>
+            </header>
+
+            <!-- Canvas Viewports -->
+            <div class="canvas-wrapper">
+                <!-- Floating Context Action Bar above selected shelf -->
+                <div id="shelf-action-bar" class="shelf-action-bar" style="left: 935.348px; top: 295.316px; display: none;">
+                    <span id="action-bar-title" class="action-bar-title">Tablar 300x1900 mm Spezial</span>
+                    <div class="action-bar-divider"></div>
+                    <button id="btn-action-flip-h" class="btn-action" title="Horizontale Spiegeln (Flip H)">↔️ Spiegeln H</button>
+                    <button id="btn-action-flip-v" class="btn-action" title="Vertikale Spiegeln (Flip V)">↕️ Spiegeln V</button>
+                    <div class="action-bar-divider"></div>
+                    <button id="btn-action-duplicate" class="btn-action" title="Tablar duplizieren">📋 Duplizieren</button>
+                    <button id="btn-action-up" class="btn-action" title="1 Rasterstufe höher (80mm)">⬆️ Höher</button>
+                    <button id="btn-action-down" class="btn-action" title="1 Rasterstufe tiefer (80mm)">⬇️ Tiefer</button>
+                    <button id="btn-action-delete" class="btn-action danger" title="Tablar löschen">🗑️ Löschen</button>
+                </div>
+
+                <!-- 2D Canvas -->
+                <canvas id="configurator-canvas" width="3050" height="1219" style="cursor: pointer;"></canvas>
+
+                <!-- 3D WebGL Overlay -->
+                <div id="three-canvas-container"></div>
+
+                <!-- Canvas Instructions & Controls Legend Overlay -->
+                <div class="canvas-hint" id="controls-legend">
+                    <div class="hint-item">
+                        <span class="hint-badge">🖐️ Plan Verschieben (Pan)</span>
+                        <span>Linksklick auf freie Fläche &amp; ziehen</span>
+                    </div>
+                    <div class="hint-item">
+                        <span class="hint-badge">📦 Tablar / TV Bewegen</span>
+                        <span>Anklicken &amp; ziehen (Lochraster Snap)</span>
+                    </div>
+                    <div class="hint-item">
+                        <span class="hint-badge">🔍 Zoom</span>
+                        <span>Mausrad</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <footer class="status-bar">
+                <div class="status-info">
+                    <span>6 Pfosten (Achsabstand 665 mm)</span>
+                    <span>10 mm Lochraster</span>
+                    <span>TV Standardposition fixiert</span>
+                </div>
+                <div>Webbasiert &amp; Lokal</div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Scripts (Cache-Busting for Live Server) -->
+    <script src="snapshot_files/dxf-defaults_KYnH.js"></script>
+    <script src="snapshot_files/dxf-parser_KYnH.js"></script>
+    <script src="snapshot_files/svg-parser_KYnH.js"></script>
+    <script src="snapshot_files/step-parser_KYnH.js"></script>
+    <script src="snapshot_files/configurator_KYnH.js"></script>
+    <script src="snapshot_files/three-view_KYnH.js"></script>
+    <script src="snapshot_files/app_KYnH.js"></script>
+
+
+</body></html>
