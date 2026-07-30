@@ -324,13 +324,15 @@ class Configurator2D {
 
         if (!this.basisData || !this.basisData.holes) return;
 
+        const alignThreshold = (window.innerWidth <= 768 || document.body.classList.contains('mobile-mode')) ? 3.5 : 1.8;
+
         // 1. Grid alignment check (all holes of a shelf must lie on a valid wall hole)
         this.placedShelves.forEach(shelf => {
             const holes = this._getShelfHoles(shelf);
             if (holes.length > 0) {
                 const allAligned = holes.every(h => {
                     return this.basisData.holes.some(bh =>
-                        Math.abs(bh.x - h.x) < 1.5 && Math.abs(bh.y - h.y) < 1.5
+                        Math.abs(bh.x - h.x) < alignThreshold && Math.abs(bh.y - h.y) < alignThreshold
                     );
                 });
                 if (!allAligned) {
@@ -398,6 +400,7 @@ class Configurator2D {
         const shelfHoles = this._getShelfHoles(shelf);
         if (shelfHoles.length === 0) return;
 
+        const effectiveSnapRadius = (window.innerWidth <= 768 || document.body.classList.contains('mobile-mode')) ? 65 : 35;
         let bestSnapDelta = null;
         let minDistanceSq = Infinity;
 
@@ -410,14 +413,14 @@ class Configurator2D {
                 const dy = bh.y - worldShY;
                 const distSq = dx * dx + dy * dy;
 
-                if (distSq < (this.snapRadius * this.snapRadius) && distSq < minDistanceSq) {
+                if (distSq < (effectiveSnapRadius * effectiveSnapRadius) && distSq < minDistanceSq) {
                     minDistanceSq = distSq;
                     bestSnapDelta = { dx, dy };
                 }
             });
         });
 
-        if (bestSnapDelta && minDistanceSq < (this.snapRadius * this.snapRadius)) {
+        if (bestSnapDelta && minDistanceSq < (effectiveSnapRadius * effectiveSnapRadius)) {
             shelf.x += bestSnapDelta.dx;
             shelf.y += bestSnapDelta.dy;
 
@@ -539,12 +542,66 @@ class Configurator2D {
         }
     }
 
-    // Interactive Event Handlers
+    // Interactive Event Handlers (Mouse & Mobile Touch Support)
     _initEvents() {
         this.canvas.addEventListener('mousedown', e => this._onMouseDown(e));
         this.canvas.addEventListener('mousemove', e => this._onMouseMove(e));
         this.canvas.addEventListener('mouseup', e => this._onMouseUp(e));
         this.canvas.addEventListener('wheel', e => this._onWheel(e), { passive: false });
+
+        // Touch Event Listeners for Mobile Phones & Tablets
+        let lastTouchDist = 0;
+
+        this.canvas.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                const t = e.touches[0];
+                this._onMouseDown({ clientX: t.clientX, clientY: t.clientY });
+            } else if (e.touches.length === 2) {
+                this.isDragging = false;
+                this.isDraggingTv = false;
+                this.isPanning = false;
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+            }
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchmove', e => {
+            if (e.cancelable) e.preventDefault();
+            if (e.touches.length === 1) {
+                const t = e.touches[0];
+                this._onMouseMove({ clientX: t.clientX, clientY: t.clientY });
+            } else if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (lastTouchDist > 0) {
+                    const zoomFactor = dist / lastTouchDist;
+                    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+                    const rect = this.canvas.getBoundingClientRect();
+                    const mouseX = midX - rect.left;
+                    const mouseY = midY - rect.top;
+
+                    const worldPos = this.canvasToWorld(mouseX, mouseY);
+                    this.scale = Math.max(0.1, Math.min(1.5, this.scale * zoomFactor));
+
+                    this.offsetX = mouseX - worldPos.x * this.scale;
+                    this.offsetY = mouseY + worldPos.y * this.scale;
+
+                    this._updateActionBarPosition();
+                    this.render();
+                }
+                lastTouchDist = dist;
+            }
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchend', () => {
+            lastTouchDist = 0;
+            this._onMouseUp();
+        }, { passive: false });
     }
 
     _onMouseDown(e) {

@@ -317,6 +317,40 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Mobile View Mode Toggle & Drawer Controls
+    const btnToggleMobileMode = document.getElementById('btn-toggle-mobile-mode');
+    const btnToggleMobileDrawer = document.getElementById('btn-toggle-mobile-drawer');
+    const sidebarEl = document.querySelector('.sidebar');
+
+    if (btnToggleMobileMode) {
+        btnToggleMobileMode.addEventListener('click', () => {
+            document.body.classList.toggle('mobile-mode');
+            const isMobileMode = document.body.classList.contains('mobile-mode');
+            btnToggleMobileMode.classList.toggle('active', isMobileMode);
+            btnToggleMobileMode.textContent = isMobileMode ? '💻 Desktop Modus' : '📱 Handy Modus';
+            if (configurator) configurator._resizeCanvas();
+        });
+    }
+
+    if (btnToggleMobileDrawer && sidebarEl) {
+        btnToggleMobileDrawer.addEventListener('click', () => {
+            sidebarEl.classList.toggle('mobile-open');
+            const isOpen = sidebarEl.classList.contains('mobile-open');
+            btnToggleMobileDrawer.textContent = isOpen ? '✖️ Menü Schliessen' : '➕ Tablare & Menü';
+        });
+
+        // Auto-close drawer when adding a shelf on mobile
+        const addButtons = document.querySelectorAll('.btn-add');
+        addButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (window.innerWidth <= 768 || document.body.classList.contains('mobile-mode')) {
+                    sidebarEl.classList.remove('mobile-open');
+                    btnToggleMobileDrawer.textContent = '➕ Tablare & Menü';
+                }
+            });
+        });
+    }
+
     // Export & Save Configuration
     document.getElementById('btn-export-json')?.addEventListener('click', () => {
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(configurator.placedShelves, null, 2));
