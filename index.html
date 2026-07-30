@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wandregal Konfigurator</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    
+    <!-- Three.js & GLTFLoader for 3D Visualisation (loaded via CDN) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+
+    <div id="app-container">
+        <!-- Sidebar Left: Control Panel & Library -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Wandregal Konfigurator</h1>
+            </div>
+
+            <div class="sidebar-content">
+                <!-- Panel 1: Tablar Bibliothek -->
+                <div class="panel-section">
+                    <div class="panel-title">Tablar-Bibliothek</div>
+                    <div class="preset-list" id="preset-list">
+                        <div class="preset-card">
+                            <div class="preset-info">
+                                <div class="preset-name">Tablar 300 x 1200 mm</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-1200">+ Einfügen</button>
+                        </div>
+                        <div class="preset-card">
+                            <div class="preset-info">
+                                <div class="preset-name">Tablar 350 x 1200 mm</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-350x1200">+ Einfügen</button>
+                        </div>
+                        <div class="preset-card">
+                            <div class="preset-info">
+                                <div class="preset-name">Tablar 300 x 1900 mm</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-1900">+ Einfügen</button>
+                        </div>
+                        <div class="preset-card">
+                            <div class="preset-info">
+                                <div class="preset-name">Tablar 300 x 2600 mm</div>
+                                <div class="preset-desc">DXF / 3D GLTF Modell</div>
+                            </div>
+                            <button class="btn-add" id="btn-add-2600">+ Einfügen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel 2: Live Stückliste (Tablare) -->
+                <div class="panel-section">
+                    <div class="panel-title">Stückliste (Tablare)</div>
+                    <table class="bom-table">
+                        <thead>
+                            <tr>
+                                <th>Tablar-Typ</th>
+                                <th>Anzahl</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bom-table-body">
+                            <tr>
+                                <td><strong>Gesamt Tablare</strong></td>
+                                <td class="bom-highlight">0 Stk.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Panel 3: Speichern & Export -->
+                <div class="panel-section">
+                    <div class="panel-title">Export & Daten</div>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button class="btn-tool" id="btn-export-json" style="justify-content: center;">
+                            💾 Konfiguration Speichern (JSON)
+                        </button>
+                        <button class="btn-tool danger" id="btn-clear-all" style="justify-content: center;">
+                            🗑️ Alle Tablare Löschen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Stage -->
+        <main class="main-stage">
+            <!-- Top Toolbar -->
+            <header class="top-toolbar">
+                <div class="toolbar-group">
+                    <button class="btn-tool danger" id="btn-delete-selected">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"></path>
+                        </svg>
+                        Löschen (Entf)
+                    </button>
+                    <button class="btn-tool" id="btn-measure">
+                        📏 Abstände Messen
+                    </button>
+                    <button class="btn-tool" id="btn-clear-measurements" title="Messlinien löschen">
+                        🧹 Messung löschen
+                    </button>
+                </div>
+
+                <div class="toolbar-group">
+                    <span style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+                        <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green);"></span>
+                        10mm Lochraster Snap aktiv
+                    </span>
+                    <button class="btn-tool" id="btn-toggle-3d">
+                        3D Visualisierung
+                    </button>
+                </div>
+            </header>
+
+            <!-- Canvas Viewports -->
+            <div class="canvas-wrapper">
+                <!-- Floating Context Action Bar above selected shelf -->
+                <div id="shelf-action-bar" class="shelf-action-bar">
+                    <span id="action-bar-title" class="action-bar-title">Tablar</span>
+                    <div class="action-bar-divider"></div>
+                    <button id="btn-action-duplicate" class="btn-action" title="Tablar duplizieren">📋 Duplizieren</button>
+                    <button id="btn-action-up" class="btn-action" title="1 Rasterstufe höher (80mm)">⬆️ Höher</button>
+                    <button id="btn-action-down" class="btn-action" title="1 Rasterstufe tiefer (80mm)">⬇️ Tiefer</button>
+                    <button id="btn-action-delete" class="btn-action danger" title="Tablar löschen">🗑️ Löschen</button>
+                </div>
+
+                <!-- 2D Canvas -->
+                <canvas id="configurator-canvas"></canvas>
+
+                <!-- 3D WebGL Overlay -->
+                <div id="three-canvas-container"></div>
+
+                <!-- Canvas Instructions & Controls Legend Overlay -->
+                <div class="canvas-hint" id="controls-legend">
+                    <div class="hint-item">
+                        <span class="hint-badge">🖐️ Plan Verschieben (Pan)</span>
+                        <span>Linksklick auf freie Fläche &amp; ziehen</span>
+                    </div>
+                    <div class="hint-item">
+                        <span class="hint-badge">📦 Tablar / TV Bewegen</span>
+                        <span>Anklicken &amp; ziehen (Lochraster Snap)</span>
+                    </div>
+                    <div class="hint-item">
+                        <span class="hint-badge">🔍 Zoom</span>
+                        <span>Mausrad</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Bar -->
+            <footer class="status-bar">
+                <div class="status-info">
+                    <span>6 Pfosten (Achsabstand 665 mm)</span>
+                    <span>10 mm Lochraster</span>
+                    <span>TV Standardposition fixiert</span>
+                </div>
+                <div>Webbasiert &amp; Lokal</div>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/dxf-defaults.js"></script>
+    <script src="js/dxf-parser.js"></script>
+    <script src="js/step-parser.js"></script>
+    <script src="js/configurator.js"></script>
+    <script src="js/three-view.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
