@@ -40,6 +40,16 @@ document.addEventListener('DOMContentLoaded', () => {
         bomTableBody.innerHTML = rowsHTML;
     };
 
+    // FEATURE FLAGS - CATALOG SORTIMENT CONFIGURATION
+    // Set ENABLE_TABLAR_2600 to true whenever 2.6m (2600mm) shelf should be re-enabled in the catalog
+    const ENABLE_TABLAR_2600 = false;
+
+    // Toggle 2600mm shelf preset card visibility based on feature flag
+    const card2600 = document.getElementById('preset-card-2600');
+    if (card2600) {
+        card2600.style.display = ENABLE_TABLAR_2600 ? 'flex' : 'none';
+    }
+
     // Load Default CAD Data from cad_files/2d/
     function initializeCadData() {
         try {
@@ -137,8 +147,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             configurator.registerTemplate('tablar_300x1900_spezial', 'Tablar 300x1900 mm Spezial (90° Stufe in Feld 2)', getZTablarSpezialData());
 
-            const parsed2600 = DXFParser.parse(DEFAULT_DXF_TABLAR_2600);
-            configurator.registerTemplate('tablar_300x2600', 'Tablar 300x2600 mm', parsed2600);
+            if (ENABLE_TABLAR_2600) {
+                const parsed2600 = DXFParser.parse(DEFAULT_DXF_TABLAR_2600);
+                configurator.registerTemplate('tablar_300x2600', 'Tablar 300x2600 mm', parsed2600);
+            }
         } catch (e) { console.error('Error registering tablar DXFs:', e); }
 
         // Fetch external SVG / DXF files from cad_files/2d/
@@ -171,10 +183,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (svgParsed) configurator.registerTemplate('tablar_300x1900', 'Tablar 300x1900 mm', svgParsed);
         }).catch(() => {});
 
-        fetch('cad_files/2d/tablar_300x2600.svg').then(r => r.text()).then(txt => {
-            const svgParsed = SVGParser.parse(txt, 2600);
-            if (svgParsed) configurator.registerTemplate('tablar_300x2600', 'Tablar 300x2600 mm', svgParsed);
-        }).catch(() => {});
+        if (ENABLE_TABLAR_2600) {
+            fetch('cad_files/2d/tablar_300x2600.svg').then(r => r.text()).then(txt => {
+                const svgParsed = SVGParser.parse(txt, 2600);
+                if (svgParsed) configurator.registerTemplate('tablar_300x2600', 'Tablar 300x2600 mm', svgParsed);
+            }).catch(() => {});
+        }
 
         // Add initial demo shelf
         configurator.addShelf('tablar_300x1200');
