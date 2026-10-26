@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
             configurator.registerTemplate('tablar_350x1200', 'Tablar 350x1200 mm', parsed350x1200);
 
             const parsed1900 = DXFParser.parse(DEFAULT_DXF_TABLAR_1900);
-            configurator.registerTemplate('tablar_300x1900', 'Tablar 300x1900 mm', parsed1900);
+            configurator.registerTemplate('tablar_300x1900', 'Tablar 300x1800 mm', parsed1900);
 
             // Spezial Tablar: 90°-Steg liegt in der Mitte von Feld 2 (zwischen Pfosten 2 und Pfosten 3)
             function getZTablarSpezialData() {
@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             }
 
-            configurator.registerTemplate('tablar_300x1900_spezial', 'Tablar 300x1900 mm Spezial (90° Stufe in Feld 2)', getZTablarSpezialData());
+            configurator.registerTemplate('tablar_300x1900_spezial', 'Tablar 300x1800 mm Spezial (90° Stufe in Feld 2)', getZTablarSpezialData());
 
             if (ENABLE_TABLAR_2600) {
                 const parsed2600 = DXFParser.parse(DEFAULT_DXF_TABLAR_2600);
@@ -180,7 +180,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fetch('cad_files/2d/tablar_300x1900.svg').then(r => r.text()).then(txt => {
             const svgParsed = SVGParser.parse(txt, 1900);
-            if (svgParsed) configurator.registerTemplate('tablar_300x1900', 'Tablar 300x1900 mm', svgParsed);
+            if (svgParsed) configurator.registerTemplate('tablar_300x1900', 'Tablar 300x1800 mm', svgParsed);
         }).catch(() => {});
 
         if (ENABLE_TABLAR_2600) {

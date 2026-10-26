@@ -78,7 +78,7 @@ class STEPParser {
         shape.lineTo(735, notchZ);
         shape.lineTo(735, backZ);
 
-        // Notch 3 (Post 3: X = 1400 to 1435 mm) - Exact CAD STEP position for 1900mm shelf!
+        // Notch 3 (Post 3: X = 1400 to 1435 mm) - Exact CAD STEP position for 1800mm (180cm) shelf!
         if (is3Span || width > 1500) {
             shape.lineTo(1400, backZ);
             shape.lineTo(1400, notchZ);
